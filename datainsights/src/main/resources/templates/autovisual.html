@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Data Insights</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <script th:src="@{echarts.min.js}"></script>
+</head>
+
+<body>
+    <header>
+        <h1>Welcome to Data Insights</h1>
+        <!-- <img th:src="@{/images/TacoCloud.png}" alt="Taco Cloud"/> -->
+        <form method="POST" th:action="@{/logout}" id="logoutForm" class="logout-btn">
+            <input type="submit" value="Logout"/>
+        </form>
+    </header>
+
+    <main>
+        <aside>
+            <div class="form-container">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="hidden" id="csrfToken" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="file" name="file" />
+                    <button type="button" id="uploadButton" class="primary">Upload</button>
+                </form>
+
+                <form th:method="POST" th:action="@{/autovisual}" th:object="${myQuery}" id="searchForm">
+                    <div class="grid">
+                        <input type="text" th:field="*{question}" placeholder="Input your question">
+                        <!-- <input type="text" th:field="*{dbPath}" placeholder="Input your DB path"> -->
+                        <button class="primary" type="submit">Confirm</button>
+                    </div>
+                </form>
+
+                <script>
+                    document.getElementById('uploadButton').addEventListener('click', function() {
+                        var file = document.querySelector('input[type=file]').files[0];
+                        var formData = new FormData();
+                        formData.append('file', file);
+
+                        var name = csrfToken.name;
+                        var value = csrfToken.value;
+                        formData.append(name, value);
+                    
+                        fetch('/upload', {
+                            method: 'POST',
+                            body: formData
+                        }).then(response => {
+                            if (response.ok) {
+                                alert("File uploaded successfully.");
+                            } else {
+                                alert("File upload failed.");
+                            }
+                        }).catch(error => {
+                            console.error('Error during fetch operation:', error);
+                            alert("Error: " + error.message);
+                        });
+                    });
+                    </script>
+
+                <div class="data-output" th:object="${myQuery}">
+                    <p>Predicted SQL: <span th:text="*{predictedSQL}"></span></p>
+                    <p>DB Path: <span th:text="*{dbName}"></span></p>
+                    <p>Vis Scheam: <span th:text="*{visPattern}"></span></p>
+                </div>
+            </div>
+
+            <form id="csvForm">
+                <button type="submit" class="csv-download-btn">Download CSV</button>
+            </form>
+        
+            <script>
+                document.getElementById('csvForm').onsubmit = function(event) {
+                    event.preventDefault();
+                    // // Serialize the form data into a query string
+                    // var formData = new FormData(this);
+                    // var queryString = new URLSearchParams(formData).toString();
+        
+                    // 发送GET请求到新的API端点，附加查询参数
+                    fetch('/api/plot_data?csv')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        // 创建下载链接并模拟点击来下载文件
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.setAttribute('download', 'output.csv'); // 指定下载的文件名
+                        document.body.appendChild(link);
+                        link.click();
+                        link.parentNode.removeChild(link);
+                    })
+                    .catch(error => console.error('Error:', error));
+                };
+            </script>
+        </aside>
+
+        <section class="chart-container">
+            <div class="button-group">
+                <button class="chart-btn" onclick="getChart()">Your Chart</button>
+                <button class="chart-btn" onclick="getScatter()">Scatter</button>
+                <button class="chart-btn" onclick="getline()">Line</button>
+                <button class="chart-btn" onclick="getPie()">Pie</button>
+                <button class="chart-btn" onclick="getBar()">Bar</button>
+            </div>
+            <div id="plot0" class="box" style="width: 750px; height: 500px;"></div>
+            <div id="pagination"></div>
+        </section>
+    </main>
+
+    <script th:inline="javascript">
+        var myChart = echarts.init(document.getElementById("plot0"));
+        var chartDataList = [];
+
+        function getBar() {
+            fetch("/api/plot_data?plot")
+            .then(response => response.json())
+            .then(data => {
+                chartDataList = data.filter(chartData => chartData.graphType == "bar" && chartData.suggested == false);
+                if (chartDataList.length > 0) {
+                    // 默认显示第一个条形图
+                    showBarChart(0);
+                    // 生成分页标签
+                    const paginationDiv = document.getElementById("pagination");
+                    paginationDiv.innerHTML = ''; // 清空分页标签容器
+                    for (let i = 0; i < chartDataList.length; i++) {
+                        const pageButton = document.createElement("button");
+                        pageButton.innerText = i + 1; // 分页标签从 1 开始
+                        pageButton.onclick = function() {
+                            showBarChart(i); // 当点击时显示相应的图表
+                        };
+                        paginationDiv.appendChild(pageButton);
+                    }
+                }
+            })
+            .catch(error => console.error("Error: ", error));
+        }
+        function showBarChart(index) {
+        const chartData = chartDataList[index];
+        var option = {
+            tooltip: {},
+            legend: {
+                data: [chartData.ylabel]
+            },
+            xAxis: {
+                data: chartData.xvalueString,
+                name: chartData.xlabel
+            },
+            yAxis: {
+                name: chartData.ylabel
+            },
+            series: [{
+                name: chartData.ylabel,
+                type: chartData.graphType,
+                data: chartData.yvalue
+            }],
+        };
+        myChart.clear();
+        myChart.setOption(option);
+        }
+
+        function getPie() {
+            fetch("/api/plot_data?plot")
+            .then(response => response.json())
+            .then(data => {
+                chartDataList = data.filter(chartData => chartData.graphType == "pie");
+                if (chartDataList.length > 0) {
+                    showPieChart(0);
+                    const paginationDiv = document.getElementById("pagination");
+                    paginationDiv.innerHTML = ''; 
+                    for (let i = 0; i < chartDataList.length; i++) {
+                        const pageButton = document.createElement("button");
+                        pageButton.innerText = i + 1; 
+                        pageButton.onclick = function() {
+                            showPieChart(i); 
+                        };
+                        paginationDiv.appendChild(pageButton);
+                    }
+                }
+            })
+            .catch(error => console.error("Error: ", error));
+        }
+        function showPieChart(index) {
+            const chartData = chartDataList[index];
+            var option = {
+            tooltip: {
+                trigger: 'item',
+                formatter: "{a} <br/>{b} : {c} ({d}%)"
+            },
+            legend: {
+                orient: 'vertical',
+                left: 10,
+                data: chartData.xvalueString 
+                },
+            series: [{
+                name: chartData.ylabel,
+                type: 'pie',
+                radius: ['55%', '70%'],
+                data: chartData.yvalue.map((yvalue, index) => {
+                    return {
+                            value: yvalue,
+                            name: chartData.xvalueString[index]
+                            };
+                    })
+                }]
+            };
+            myChart.clear();
+            myChart.setOption(option);
+        }
+
+        function getScatter() {
+            fetch("/api/plot_data?plot")
+            .then(response => response.json())
+            .then(data => {
+                chartDataList = data.filter(chartData => chartData.graphType == "scatter");
+                if (chartDataList.length > 0) {
+                    showScatter(0);
+                    const paginationDiv = document.getElementById("pagination");
+                    paginationDiv.innerHTML = ''; 
+                    for (let i = 0; i < chartDataList.length; i++) {
+                        const pageButton = document.createElement("button");
+                        pageButton.innerText = i + 1; 
+                        pageButton.onclick = function() {
+                            showScatter(i); 
+                        };
+                        paginationDiv.appendChild(pageButton);
+                    }
+                }
+            })
+            .catch(error => console.error("Error: ", error));
+        }
+        function showScatter(index) {
+            const chartData = chartDataList[index];
+            var xData = chartData.xvalueDouble;
+            var yData = chartData.yvalue;
+            var groupData = chartData.groupValue;
+            var defaultGroup = "Default Group";
+
+            var scatter_data = {};
+            for (var i =0; i < xData.length; i++) {
+                var groupName = groupData.length > 0 ? groupData[i] : defaultGroup;
+                if (!scatter_data[groupName]) {scatter_data[groupName] = []}
+                scatter_data[groupName].push([xData[i], yData[i]]);
+            }
+            
+            var seriesData = [];
+            for (var key in scatter_data) {
+                seriesData.push({name: key, type: 'scatter', data: scatter_data[key]})
+            }
+
+            var option = {
+                tooltip: {},
+                legend: {data: Object.keys(scatter_data)},
+                xAxis: {name: chartData.xlabel},
+                yAxis: {name: chartData.ylabel},
+                series: seriesData
+            }
+
+            myChart.clear();
+            myChart.setOption(option);
+        }
+        function getline() {
+            fetch("/api/plot_data?plot")
+            .then(response => response.json())
+            .then(data => {
+                chartDataList = data.filter(chartData => chartData.graphType == "line");
+                if (chartDataList.length > 0) {
+                    showLine(0);
+                    const paginationDiv = document.getElementById("pagination");
+                    paginationDiv.innerHTML = ''; 
+                    for (let i = 0; i < chartDataList.length; i++) {
+                        const pageButton = document.createElement("button");
+                        pageButton.innerText = i + 1; 
+                        pageButton.onclick = function() {
+                            showLine(i); 
+                        };
+                        paginationDiv.appendChild(pageButton);
+                    }
+                }
+            })
+            .catch(error => console.error("Error: ", error));
+        }
+        function showLine(index) {
+            const chartData = chartDataList[index];
+            var xData = chartData.xvalueDouble;
+            var yData = chartData.yvalue;
+            var groupData = chartData.groupValue;
+            var defaultGroup = "Default Group";
+
+            var line_data = {};
+            for (var i =0; i<xData.length; i++) {
+                var groupName = groupData.length > 0 ? groupData[i] : defaultGroup;
+                if (!line_data[groupName]) {line_data[groupName] = []}
+                line_data[groupName].push([xData[i], yData[i]]);
+            }
+
+            var seriesData = [];
+            for (var key in line_data) {
+                seriesData.push({name: key, type:'line', data: line_data[key]})
+            }
+
+            var option = {
+                tooltip: {},
+                legend: {data: Object.keys(line_data)},
+                xAxis: {name: chartData.xlabel},
+                yAxis: {name: chartData.ylabel},
+                series: seriesData
+            }
+
+            myChart.clear();
+            myChart.setOption(option);
+        }
+
+
+        function getChart() {
+            fetch("/api/plot_data?plot")
+            .then(response => response.json())
+            .then(data => {
+                if (data.some(chartData => chartData.graphType == "bar" && chartData.suggested == true)) {
+                    chartDataList = data.filter(chartData => chartData.graphType == "bar" && chartData.suggested == true);
+                    showBarChart(0);
+                }
+                else if (data.some(chartData => chartData.graphType == "pie" && chartData.suggested == true)) {
+                    chartDataList = data.filter(chartData => chartData.graphType == "pie" && chartData.suggested == true);
+                    showPieChart(0);
+                }
+                else if (data.some(chartData => chartData.graphType == "scatter" && chartData.suggested == true)) {
+                    chartDataList = data.filter(chartData => chartData.graphType == "scatter" && chartData.suggested == true);
+                    showScatter(0);
+                }
+                else if (data.some(chartData => chartData.graphType == "line" && chartData.suggested == true)) {
+                    chartDataList = data.filter(chartData => chartData.graphType == "line" && chartData.suggested == true);
+                    showLine(0);
+                }
+            })
+            // .then(data => {
+            //     chartDataList = data.filter(chartData => chartData.graphType == "bar" && chartData.suggested == true);
+            //     showBarChart(0);
+            // })
+            .catch(error => console.error("Error: ", error));
+        }
+    </script>
+</body>
+</html>

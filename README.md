@@ -6,7 +6,7 @@ This is my independent project in HKUST(GZ). The topic is given by HUAWEI Cloud 
 # Functionality Test Cases
 Here use the example from Spider test database **candidate_poll**, whose database schema is shown below.
 
-![](static/imgs/candidate_poll.png)
+![](static/imgs/candidate_poll.png){width=60%}
 
 ## Login and upload database
 ![](static/videos/demonstration1.gif)

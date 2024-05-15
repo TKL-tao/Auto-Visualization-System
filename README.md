@@ -1,7 +1,10 @@
 # Auto-Visualization-System
 This is my independent project in HKUST(GZ). The topic is given by HUAWEI Cloud and Prof. Luo.  Given a database (SQLite), this system can generate an intended visualization graph based on users' natural language requests.
 
-(**Demonstration Video and technical document are coming soon...**)
+This page shows the demonstration of the auto-visualization system.
+For the algorithm and web design details, please refer to [technical_details](technical_details).
+
+(**Demonstration Video and technical document are coming**)
 
 # Functionality Test Cases
 Here use the example from Spider test database **candidate_poll**, whose database schema is shown below.
